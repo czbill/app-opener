@@ -74,30 +74,35 @@ class AppOpener {
       }
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("webkitvisibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", markOpened);
     };
 
-    const onVisibilityChange = () => {
-      if (document.hidden || document.webkitHidden) {
+    const markOpened = () => {
+      if (!opened) {
         opened = true;
         cleanup();
         this.onLog("页面进入后台，判断为 App 已被唤起");
       }
     };
 
-    const launchApp = () => {
-      if (this.isIOS && this.universalLink) {
-        this.onLog(`尝试 Universal Link: ${this.universalLink}`);
-        window.location.href = this.universalLink;
-        return;
+    const onVisibilityChange = () => {
+      if (document.hidden || document.webkitHidden) {
+        markOpened();
       }
+    };
 
+    const launchApp = () => {
       if (this.scheme) {
         this.onLog(`尝试 Scheme: ${this.scheme}`);
+        if (this.isIOS) {
+          window.location.href = this.scheme;
+          return;
+        }
+
         const iframe = document.createElement("iframe");
         iframe.style.display = "none";
         iframe.src = this.scheme;
         document.body.appendChild(iframe);
-
         setTimeout(() => {
           if (iframe.parentNode) {
             iframe.parentNode.removeChild(iframe);
@@ -106,20 +111,25 @@ class AppOpener {
         return;
       }
 
-      const storeUrl = this.getStoreUrl();
-      this.onLog(`没有 Scheme，直接跳转: ${storeUrl}`);
-      window.location.href = storeUrl;
+      if (this.universalLink) {
+        this.onLog(`没有 Scheme，尝试 Universal Link: ${this.universalLink}`);
+        window.location.href = this.universalLink;
+        return;
+      }
+
+      this.onLog("没有 Scheme 或 Universal Link，直接跳转商店下载页");
+      this.openStore();
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
     document.addEventListener("webkitvisibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", markOpened);
 
     timer = setTimeout(() => {
       if (!opened) {
         cleanup();
-        const storeUrl = this.getStoreUrl();
-        this.onLog(`超时未唤起，跳转: ${storeUrl}`);
-        window.location.href = storeUrl;
+        this.onLog("超时未唤起 App");
+        this.openStore();
       }
     }, this.timeout);
 
